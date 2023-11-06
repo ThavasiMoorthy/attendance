@@ -1,0 +1,74 @@
+import cv2
+from pyzbar.pyzbar import decode
+import openpyxl
+import datetime
+import winsound
+import os
+
+def scan_barcodes_and_mark_attendance(filename):
+    # Open the camera
+    cap = cv2.VideoCapture(0)  # Use camera index 0 (default webcam)
+
+    if not os.path.exists(filename):
+        # Create a new Excel file with headers
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Barcode Type", "Roll No", "Attendance Status", "Timestamp"])
+        wb.save(filename)
+    else:
+        wb = openpyxl.load_workbook(filename)
+        ws = wb.active
+
+    scanned_barcodes = set()  # Set to store scanned barcodes
+
+    while True:
+        # Capture a frame from the camera
+        ret, frame = cap.read()
+
+        if not ret:
+            print("Error capturing frame from camera.")
+            break
+
+        # Decode barcodes from the frame
+        decoded_barcodes = decode(frame)
+
+        # Display the frame
+        cv2.imshow('Barcode Scanner', frame)
+
+        # Process decoded barcodes
+        for decoded_barcode in decoded_barcodes:
+            barcode_data = decoded_barcode.data.decode("utf-8")
+            barcode_type = decoded_barcode.type
+            print(f"Barcode Type: {barcode_type}")
+            print(f"Roll No: {barcode_data}")
+
+            # Check if the barcode has been scanned
+            if barcode_data not in scanned_barcodes:
+                # Mark attendance as "P" in the next cell
+                current_row = ws.max_row + 1
+                ws.cell(row=current_row, column=1, value=barcode_type)
+                ws.cell(row=current_row, column=2, value=barcode_data)
+                ws.cell(row=current_row, column=3, value="P")
+                ws.cell(row=current_row, column=4, value=datetime.datetime.now())
+                wb.save(filename)
+
+                # Play a beep sound
+                winsound.Beep(1000, 300)  # Frequency: 1000 Hz, Duration: 300 ms
+
+                # Add the barcode to the set of scanned barcodes
+                scanned_barcodes.add(barcode_data)
+
+            # Wait for a moment to capture the next frame
+            cv2.waitKey(2000)
+
+        # Exit the loop if the 'q' key is pressed
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    # Release the camera and close the OpenCV windows
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    excel_filename = "student_attendance.xlsx"
+    scan_barcodes_and_mark_attendance(excel_filename)
